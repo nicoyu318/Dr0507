@@ -9,23 +9,59 @@
   $sender_txt = $json_obj->events[0]->message->text; //取得訊息內容
   $sender_replyToken = $json_obj->events[0]->replyToken; //取得訊息的replyToken
   
-  $sender_txt=rawurlencode($sender_txt); //因為使用get的方式呼叫luis api，所以需要轉碼
-  $ch = curl_init('https://westus.api.cognitive.microsoft.com/luis/v2.0/apps/c72546f8-8ea9-403d-a4fb-7203217e4b54?subscription-key=f3ede71b589e4eacbf35f3f7b28cc212&staging=true&verbose=true&timezoneOffset=0&q='.$sender_txt);                                                                      
-  curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "GET");                                                                                                                          
-  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-  $result_str = curl_exec($ch);
-  fwrite($myfile, "\xEF\xBB\xBF".$result_str); //在字串前加上\xEF\xBB\xBF轉成utf8格式
-  $result = json_decode($result_str);
-  $ans_txt = $result -> topScoringIntent -> intent;
-  $response = array (
-    "to" => $sender_userid,
-    "messages" => array (
-      array (
-        "type" => "text",
-        "text" => $ans_txt
-      )
-    )
-  );
+  $imageId = $json_obj->events[0]->message->id; //取得訊息編號
+	$url = 'https://api.line.me/v2/bot/message/'.$imageId.'/content';
+	$ch = curl_init($url);
+	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+	curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+		'Authorization: Bearer 5VC2skUsCqRPhgbtIdJR171xKitIUPCROMrSmPoTL6rcAELaj519b1mqiuzBTyOrVWdProJ0CgVXoNhxXRAeN9sclBj4qErZdy8eHINRarkxgDqlrhqTMzGNPMr7uaTXy5+LqdvmlB1Bngjal9jLCAdB04t89/1O/w1cDnyilFU='
+	));
+	$json_content = curl_exec($ch);
+	curl_close($ch);
+	$imagefile = fopen($imageId.".jpeg", "w+") or die("Unable to open file!");
+	fwrite($imagefile, $json_content); 
+	fclose($imagefile); //將圖片存在server上
+			
+	$header[] = "Content-Type: application/json";
+	$post_data = array (
+		"requests" => array (
+				array (
+					"image" => array (
+						"source" => array (
+							"imageUri" => "https://sporzfy.com/chtChatBot/Dr0507/".$imageId.".jpeg"
+						)
+					),
+					"features" => array (
+						array (
+							"type" => "TEXT_DETECTION",
+							"maxResults" => 1
+						)
+					)
+				)
+		)
+	);
+	$ch = curl_init('https://vision.googleapis.com/v1/images:annotate?key=AIzaSyCiyGiCfjzzPR1JS8PrAxcsQWHdbycVwmg');                                                                      
+	curl_setopt($ch, CURLOPT_CUSTOMREQUEST, "POST");                                                                     
+	curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($post_data));                                                                  
+	curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);                                                                      
+	curl_setopt($ch, CURLOPT_HTTPHEADER, $header);                                                                                                   
+	$result = json_decode(curl_exec($ch));
+	$result_ary = mb_split("\n",$result -> responses[0] -> fullTextAnnotation -> text);
+	$ans_txt = "這張發票沒用了，你又製造了一張垃圾";
+	foreach ($result_ary as $val) {
+		if($val == "AG-26272435"){
+			$ans_txt = "恭喜您中獎啦，快分紅!!";
+		}
+	}
+	$response = array (
+		"to" => $sender_userid,
+		"messages" => array (
+			array (
+				"type" => "text",
+				"text" =>$ans_txt
+			)
+		)
+	);
   
   
  fwrite($myfile, "\xEF\xBB\xBF".json_encode($response)); //在字串前面加上\xEF\xBB\xBF轉成utf8格式
